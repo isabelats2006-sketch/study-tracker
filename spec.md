@@ -130,3 +130,11 @@ the saved data correctly. The page layout and colours are not tested.
 8. Editing or deleting a session is not included (not in the requirements; it could be a
    later round).
 9. Data is saved in `data/tracker.json` and kept off GitHub.
+10. A hand-added session can't be on a day before the first run, since that day wouldn't
+    be in the list.
+11. If the tab is closed before the clock's first check-in (under 30 seconds), no session
+    is kept, rather than an empty 0-minute one.
+12. Sessions are allowed to overlap. The program doesn't check whether two sessions cover
+    the same time.
+13. If the computer goes to sleep with the clock running, the session ends at the last
+    check-in before the sleep (sleeping isn't studying).
