@@ -204,3 +204,188 @@ def day_rows(state, now):
 def top_message(state):
     """The easter egg at the top of the page (bullet 7)."""
     return "time to work hard!!" if state.goal.minutes > 0 else "have a great off day!!"
+
+
+# --- Problems the user should be told about ---
+
+class TrackerProblem(Exception):
+    """Something the user asked for breaks a rule. The message says why."""
+
+
+def format_clock(moment):
+    """2:05 PM style, in the computer's local time."""
+    hour = moment.hour % 12 or 12
+    return f"{hour}:{moment.minute:02d} {'AM' if moment.hour < 12 else 'PM'}"
+
+
+def _plural(number, word):
+    return f"{number} {word}" if number == 1 else f"{number} {word}s"
+
+
+# --- Amounts typed in a form: the goal and hand-added sessions ---
+
+def parse_amount(hours_text, minutes_text):
+    """Hours and minutes typed in a form, as total minutes. Empty boxes count as 0."""
+    try:
+        hours = int(hours_text.strip() or "0")
+        minutes = int(minutes_text.strip() or "0")
+    except ValueError:
+        raise TrackerProblem("Hours and minutes must be whole numbers, like 1 and 30.") from None
+    if hours < 0 or minutes < 0:
+        raise TrackerProblem("Hours and minutes can't be negative.")
+    if minutes > 59:
+        raise TrackerProblem("Minutes must be from 0 to 59.")
+    return hours * 60 + minutes
+
+
+def new_state(goal_minutes, period, now):
+    """The tracker the very first time it runs, with its first goal (spec 1)."""
+    return State(first_run=now.date(), goal=_checked_goal(goal_minutes, period, now))
+
+
+def set_goal(state, goal_minutes, period, now):
+    """Change the goal. The new goal counts from 0, starting now (spec 1)."""
+    state.goal = _checked_goal(goal_minutes, period, now)
+
+
+def _checked_goal(goal_minutes, period, now):
+    if period not in PERIODS:
+        raise TrackerProblem("Please choose Daily, Weekly, Monthly or Yearly.")
+    return Goal(goal_minutes, period, now)
+
+
+def reset(state, now):
+    """The Reset button: progress starts again from 0 now. Nothing is deleted (spec 7)."""
+    state.reset_at = now
+
+
+# --- Adding a session by hand (spec.md section 3) ---
+
+MAX_SESSION_MINUTES = 24 * 60
+
+
+def add_manual_session(state, day, start_time, minutes, now):
+    """Add a finished session that started on `day` at `start_time` and lasted `minutes`."""
+    if minutes < 1:
+        raise TrackerProblem("A session must be at least 1 minute long.")
+    if minutes > MAX_SESSION_MINUTES:
+        raise TrackerProblem("A session can't be longer than 24 hours.")
+    if day < state.first_run:
+        raise TrackerProblem(
+            f"That day is before you started using the tracker ({state.first_run:%b} {state.first_run.day})."
+        )
+    start = datetime.combine(day, start_time)
+    end = start + timedelta(minutes=minutes)
+    if end > now:
+        raise TrackerProblem(
+            f"A session can't end in the future. It would end at {format_clock(end)}"
+            f"{'' if end.date() == now.date() else f' on {end:%b} {end.day}'}, "
+            f"but it's {format_clock(now)} now."
+        )
+    session = Session(start, end)
+    state.sessions.append(session)
+    return session
+
+
+# --- The clock (spec.md section 3) ---
+
+CHECK_IN_SECONDS = 30  # how often the open page says "still here"
+GONE_AFTER_SECONDS = 90  # no check-in for longer than this = the tab was closed
+
+
+def running_session(state):
+    """The session whose clock is running, or None."""
+    for session in state.sessions:
+        if session.end is None:
+            return session
+    return None
+
+
+def start_clock(state, now):
+    """Start a running session now. Only one clock can run at a time."""
+    if running_session(state) is not None:
+        raise TrackerProblem("A clock is already running. Stop it first.")
+    session = Session(now, None, last_seen=now)
+    state.sessions.append(session)
+    return session
+
+
+def check_in(state, now):
+    """The open page says "still here". Returns False if no clock is running."""
+    session = running_session(state)
+    if session is None:
+        return False
+    session.last_seen = now
+    return True
+
+
+def stop_clock(state, now):
+    """The Stop button: the running session ends now."""
+    session = running_session(state)
+    if session is None:
+        raise TrackerProblem("No clock is running.")
+    session.end = now
+    return session
+
+
+def close_abandoned(state, now):
+    """End a running session whose tab was closed, at its last check-in (spec 3).
+
+    Called before anything else on every page load. A session that ends up 0 seconds
+    long (closed before its first check-in) is removed. Returns True if one was closed.
+    """
+    session = running_session(state)
+    if session is None:
+        return False
+    last = session.last_seen or session.start
+    if (now - last).total_seconds() <= GONE_AFTER_SECONDS:
+        return False
+    session.end = last
+    if session.end <= session.start:
+        state.sessions.remove(session)
+    return True
+
+
+# --- Deadlines (spec.md section 6) ---
+
+def add_deadline(state, name, day, time=None):
+    """Add a named deadline. Without a time it means 11:59 PM that day."""
+    name = name.strip()
+    if not name:
+        raise TrackerProblem("Please give the deadline a name, like CSC 300 final.")
+    if len(name) > 60:
+        raise TrackerProblem("Please keep the deadline name to 60 characters or less.")
+    due = datetime.combine(day, time) if time is not None else datetime(day.year, day.month, day.day, 23, 59)
+    deadline = Deadline(name, due)
+    state.deadlines.append(deadline)
+    return deadline
+
+
+def remove_deadline(state, index):
+    """Remove a deadline (only the user does this; nothing is removed on its own)."""
+    if not 0 <= index < len(state.deadlines):
+        raise TrackerProblem("That deadline doesn't exist anymore.")
+    del state.deadlines[index]
+
+
+def deadline_text(deadline, now):
+    """"CSC 300 final: 5 days left", "...: today", "...: 3 days past deadline"."""
+    if now <= deadline.due:
+        days = (deadline.due.date() - now.date()).days
+        left = "today" if days == 0 else f"{_plural(days, 'day')} left"
+        return f"{deadline.name}: {left}"
+    past = now - deadline.due
+    if past.days >= 1:
+        amount = _plural(past.days, "day")
+    elif past.seconds >= 3600:
+        amount = _plural(past.seconds // 3600, "hour")
+    elif past.seconds >= 60:
+        amount = _plural(past.seconds // 60, "minute")
+    else:
+        amount = "less than 1 minute"
+    return f"{deadline.name}: {amount} past deadline"
+
+
+def deadlines_in_order(state):
+    """The deadlines, soonest first, with their place in state.deadlines (for removing)."""
+    return sorted(enumerate(state.deadlines), key=lambda pair: pair[1].due)
