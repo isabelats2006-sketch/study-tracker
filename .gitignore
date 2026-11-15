@@ -1,0 +1,18 @@
+# Never in a public repo (assignment rules)
+*.jsonl
+.venv/
+venv/
+node_modules/
+.env
+
+# My real study data stays on my computer
+data/
+
+# Python, pytest and Flask leftovers
+__pycache__/
+*.pyc
+.pytest_cache/
+instance/
+
+# Claude Code personal settings
+.claude/settings.local.json
