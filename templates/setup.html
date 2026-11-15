@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Welcome to your study tracker</h1>
+  <p class="muted">First, set your goal. You can change it at any time later.</p>
+  <form class="card" method="post" action="{{ url_for('setup') }}">
+    <label>Hours <input type="number" name="hours" min="0" value="0"></label>
+    <label>Minutes <input type="number" name="minutes" min="0" max="59" value="0"></label>
+    <label>Every
+      <select name="period">
+        {% for key, name in periods.items() %}<option value="{{ key }}">{{ name|capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+    <p><button>Start tracking</button></p>
+    <p class="muted">A goal of 0 is fine too: then every day is a great off day.</p>
+  </form>
+{% endblock %}

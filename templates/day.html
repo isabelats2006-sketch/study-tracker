@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ day_title }}: study tracker{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('main_page') }}">← All days</a></p>
+  <h1>📂 {{ day_title }}</h1>
+  <p class="muted">{{ rows|length }} session{{ '' if rows|length == 1 else 's' }}, {{ duration(total) }} in total</p>
+
+  {% for session, minutes in rows %}
+    <div class="card">
+      {% if session.end %}{{ clock(session.start) }} – {{ clock(session.end) }}, {{ duration(minutes) }}{% else %}{{ clock(session.start) }} – now (running), {{ duration(minutes) }} so far{% endif %}
+    </div>
+  {% else %}
+    <p class="muted">No sessions this day yet.</p>
+  {% endfor %}
+
+  <h2>Add a session</h2>
+  {% if is_today and not running %}
+    <form class="card" method="post" action="{{ url_for('start_clock') }}">
+      <button>Start the clock</button> <span class="muted">Press Stop when you're done.</span>
+    </form>
+  {% endif %}
+  <form class="card" method="post" action="{{ url_for('add_session', day_text=day.isoformat()) }}">
+    <div>Add it by hand:</div>
+    <label>Started at <input type="time" name="start"></label>
+    <label>Hours <input type="number" name="hours" min="0" value="0"></label>
+    <label>Minutes <input type="number" name="minutes" min="0" max="59" value="0"></label>
+    <p><button>Add session</button></p>
+  </form>
+{% endblock %}

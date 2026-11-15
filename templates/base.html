@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Study tracker{% endblock %}</title>
+  <style>
+    :root { --bg: #fafaf7; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3de;
+            --accent: #2f6f5e; --warn: #9a3b1f; --good: #2f6f5e; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #161618; --card: #1f1f22; --text: #ececee; --muted: #9b9ba1; --line: #313136;
+              --accent: #7cc4ae; --warn: #f0a080; --good: #7cc4ae; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+           font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    h2 { font-size: 1.05rem; margin: 28px 0 8px; }
+    a { color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+    .muted { color: var(--muted); }
+    .big { font-size: 1.15rem; font-weight: 600; }
+    .flash { border-left: 4px solid var(--accent); }
+    .past-due { color: var(--warn); }
+    .clock { border-left: 4px solid var(--warn); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    ul.days { list-style: none; padding: 0; margin: 0; }
+    ul.days li { border-bottom: 1px solid var(--line); }
+    ul.days a { display: flex; justify-content: space-between; padding: 10px 4px; text-decoration: none; color: var(--text); }
+    ul.days a:hover { background: var(--card); }
+    form.inline { display: inline; }
+    label { display: inline-block; margin: 4px 8px 4px 0; }
+    input, select, button { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line);
+                            background: var(--card); color: var(--text); }
+    input[type=number] { width: 5em; }
+    button { cursor: pointer; background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    button.quiet { background: transparent; color: var(--accent); }
+    details summary { cursor: pointer; color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  {% for message in get_flashed_messages() %}
+    <div class="card flash">{{ message }}</div>
+  {% endfor %}
+
+  {% if running %}
+    <div class="card clock">
+      <span>Clock running since {{ clock(running.start) }}:
+        <strong id="elapsed" data-seconds="{{ running_seconds }}"></strong></span>
+      <form class="inline" method="post" action="{{ url_for('stop_clock') }}"><button>Stop</button></form>
+    </div>
+    <script>
+      // Shows the clock ticking, and tells the program "still here" every 30 seconds.
+      // If this tab is closed, the check-ins stop and the session ends at the last one.
+      const elapsed = document.getElementById("elapsed");
+      let seconds = Number(elapsed.dataset.seconds);
+      function show() {
+        const h = Math.floor(seconds / 3600), m = Math.floor(seconds / 60) % 60, s = seconds % 60;
+        elapsed.textContent = h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      }
+      show();
+      setInterval(() => { seconds += 1; show(); }, 1000);
+      setInterval(() => {
+        fetch("{{ url_for('check_in') }}", { method: "POST" })
+          .then(r => r.json()).then(d => { if (!d.running) location.reload(); });
+      }, {{ check_in_ms }});
+    </script>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>{{ message }}</h1>
+  <p class="muted">Goal: {{ goal_text }}</p>
+
+  {% for index, text in deadlines %}
+    <div class="card {% if 'past deadline' in text %}past-due{% endif %}">
+      {{ text }}
+      <form class="inline" method="post" action="{{ url_for('remove_deadline', index=index) }}">
+        <button class="quiet">Remove</button>
+      </form>
+    </div>
+  {% endfor %}
+
+  <div class="card">
+    {% if progress.percent is none %}
+      <div class="big">{{ progress.label }}: {{ duration(progress.done) }} (no goal)</div>
+    {% else %}
+      <div class="big">{{ progress.label }}: {{ duration(progress.done) }} of {{ duration(progress.goal) }}, {{ progress.percent }}% completed</div>
+    {% endif %}
+    {% if progress.extra %}<div>Extra hours: {{ duration(progress.extra) }}</div>{% endif %}
+    <div class="muted">{{ past }}</div>
+  </div>
+
+  <h2>Your days</h2>
+  <ul class="days">
+    {% for row in rows %}
+      <li><a href="{{ url_for('day_page', day_text=row.day.isoformat()) }}">
+        <span>📁 {{ row.day.strftime('%a %b') }} {{ row.day.day }}</span>
+        <span>{{ duration(row.minutes) }}{% if row.reached is true %} ✓{% elif row.reached is false %} ✗{% endif %}</span>
+      </a></li>
+    {% endfor %}
+  </ul>
+
+  <h2>Settings</h2>
+  <details class="card">
+    <summary>Change the goal</summary>
+    <form method="post" action="{{ url_for('change_goal') }}">
+      <label>Hours <input type="number" name="hours" min="0" value="{{ goal.minutes // 60 }}"></label>
+      <label>Minutes <input type="number" name="minutes" min="0" max="59" value="{{ goal.minutes % 60 }}"></label>
+      <label>Every
+        <select name="period">
+          {% for key, name in periods.items() %}
+            <option value="{{ key }}" {% if key == goal.period %}selected{% endif %}>{{ name|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <p><button>Change goal</button> <span class="muted">The new goal counts from 0.</span></p>
+    </form>
+  </details>
+  <details class="card">
+    <summary>Add a deadline</summary>
+    <form method="post" action="{{ url_for('add_deadline') }}">
+      <label>Name <input name="name" maxlength="60" placeholder="CSC 300 final"></label>
+      <label>Date <input type="date" name="date"></label>
+      <label>Time (optional) <input type="time" name="time"></label>
+      <p><button>Add deadline</button></p>
+    </form>
+  </details>
+  <details class="card">
+    <summary>Reset</summary>
+    <form method="post" action="{{ url_for('reset') }}"
+          onsubmit="return confirm('Are you sure? Progress will start again from 0. Your days stay saved.')">
+      <input type="hidden" name="sure" value="yes">
+      <p><button>Reset progress</button> <span class="muted">Your days and sessions stay saved.</span></p>
+    </form>
+  </details>
+{% endblock %}
