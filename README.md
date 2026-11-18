@@ -10,6 +10,8 @@ study goal. It runs on your own computer and you use it in the browser.
   past period went ("past week = 4/10 hours"), and countdowns to your deadlines.
 - Open a day to see its sessions (start, end, length), then start the clock or add a
   session by hand, including on past days.
+- Edit a session's start time and length, or delete it. A session can never end in the
+  future.
 - If the tab is closed while the clock runs, the session is saved up to that moment.
 - Only you can reset progress. Your days and sessions stay saved.
 
