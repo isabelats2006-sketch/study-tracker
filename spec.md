@@ -165,3 +165,10 @@ checks that each button changes the saved data correctly. The page layout and co
 16. A running session can be deleted (this cancels the clock) but not edited; press Stop
     first.
 17. Deleting asks "Are you sure?" first, because a deleted session can't be brought back.
+
+## Known small issues (left as they are for now)
+
+1. The Edit form works in whole minutes. A clock-timed session keeps its seconds (for
+   example 2:00:17 PM to 3:30:05 PM), but the form shows it as 2:00 PM and 1h 29min.
+   Saving the form, even without changing anything, stores those whole minutes, so the
+   session can lose up to a minute.
