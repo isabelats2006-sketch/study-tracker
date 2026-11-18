@@ -5,9 +5,29 @@
   <h1>📂 {{ day_title }}</h1>
   <p class="muted">{{ rows|length }} session{{ '' if rows|length == 1 else 's' }}, {{ duration(total) }} in total</p>
 
-  {% for session, minutes in rows %}
+  {% for index, session, minutes in rows %}
     <div class="card">
       {% if session.end %}{{ clock(session.start) }} – {{ clock(session.end) }}, {{ duration(minutes) }}{% else %}{{ clock(session.start) }} – now (running), {{ duration(minutes) }} so far{% endif %}
+      <form class="inline" method="post" action="{{ url_for('delete_session', index=index) }}"
+            onsubmit="return confirm('Are you sure? This session will be deleted for good.')">
+        <input type="hidden" name="was" value="{{ session.start.isoformat() }}">
+        <input type="hidden" name="sure" value="yes">
+        <button class="quiet">Delete</button>
+      </form>
+      {% if session.end %}
+        <details>
+          <summary>Edit</summary>
+          <form method="post" action="{{ url_for('edit_session', index=index) }}">
+            <input type="hidden" name="was" value="{{ session.start.isoformat() }}">
+            <label>Started at <input type="time" name="start" value="{{ session.start.strftime('%H:%M') }}"></label>
+            <label>Hours <input type="number" name="hours" min="0" value="{{ minutes // 60 }}"></label>
+            <label>Minutes <input type="number" name="minutes" min="0" max="59" value="{{ minutes % 60 }}"></label>
+            <p><button>Save changes</button> <span class="muted">It can't end in the future.</span></p>
+          </form>
+        </details>
+      {% else %}
+        <span class="muted">Press Stop before editing.</span>
+      {% endif %}
     </div>
   {% else %}
     <p class="muted">No sessions this day yet.</p>

@@ -96,13 +96,15 @@ def create_app(data_file=DATA_FILE, now=datetime.now):
             return redirect(url_for("main_page"))
         moment = current_time()
         day = _day_in_list(state, day_text, moment.date())
-        sessions = sorted(
-            (s for s in state.sessions if s.start.date() == day), key=lambda s: s.start
+        # The index in state.sessions is what the Edit and Delete buttons send back.
+        rows = sorted(
+            (
+                (index, s, tracker.session_seconds(s, moment) // 60)
+                for index, s in enumerate(state.sessions)
+                if s.start.date() == day
+            ),
+            key=lambda row: row[1].start,
         )
-        rows = [
-            (s, tracker.session_seconds(s, moment) // 60)
-            for s in sessions
-        ]
         total = tracker.minutes_between(state.sessions, _midnight(day), _midnight(day) + ONE_DAY, moment)
         return render_template(
             "day.html",
@@ -179,6 +181,28 @@ def create_app(data_file=DATA_FILE, now=datetime.now):
             flash("Session added.")
         return redirect(url_for("day_page", day_text=day.isoformat()))
 
+    @app.post("/sessions/<int:index>/edit")
+    def edit_session(index):
+        was = _parse_was(request.form.get("was", ""))
+
+        def action(state, moment):
+            start = _parse_time(request.form.get("start", ""), "Please pick the time the session started.")
+            minutes = tracker.parse_amount(request.form.get("hours", ""), request.form.get("minutes", ""))
+            tracker.edit_session(state, index, was, start, minutes, moment)
+
+        if change(action):
+            flash("Session changed.")
+        return redirect(url_for("day_page", day_text=was.date().isoformat()))
+
+    @app.post("/sessions/<int:index>/delete")
+    def delete_session(index):
+        was = _parse_was(request.form.get("was", ""))
+        if request.form.get("sure") != "yes":
+            flash("Nothing was deleted.")
+        elif change(lambda state, moment: tracker.delete_session(state, index, was)):
+            flash("Session deleted.")
+        return redirect(url_for("day_page", day_text=was.date().isoformat()))
+
     @app.post("/clock/start")
     def start_clock():
         change(tracker.start_clock)
@@ -247,6 +271,14 @@ def _parse_date(text, message):
         return date.fromisoformat(text.strip())
     except ValueError:
         raise TrackerProblem(message) from None
+
+
+def _parse_was(text):
+    """The session's start as the page saw it (hidden in the Edit and Delete forms)."""
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        abort(400)
 
 
 def _parse_time(text, message):

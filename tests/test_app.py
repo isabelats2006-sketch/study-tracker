@@ -278,3 +278,83 @@ def test_a_damaged_file_shows_an_explanation_and_is_not_changed(client, data_fil
     assert response.status_code == 500
     assert "is damaged and can&#39;t be read" in response.get_data(as_text=True)
     assert data_file.read_text(encoding="utf-8") == "{oops"
+
+
+# --- Editing and deleting a session (later bullet 1, spec 3) ---
+
+def add_two_sessions(client, clock):
+    """Mon Nov 16: 9:00-10:00 AM and 1:00-1:30 PM, added at 10 PM."""
+    clock.set("2026-11-16 22:00")
+    press(client, "/day/2026-11-16/sessions", start="09:00", hours="1", minutes="0")
+    press(client, "/day/2026-11-16/sessions", start="13:00", hours="0", minutes="30")
+
+
+def test_later_bullet_1_edit_button_changes_the_saved_session(started, clock, data_file):
+    add_two_sessions(started, clock)
+    text = press(started, "/sessions/0/edit", was="2026-11-16T09:00:00", start="08:30", hours="2", minutes="0")
+    assert "Session changed." in text
+    assert "8:30 AM – 10:30 AM, 2 hours" in text
+    assert "2 sessions, 2h 30min in total" in text
+    saved = store.load(data_file).sessions[0]
+    assert (saved.start, saved.end) == (datetime(2026, 11, 16, 8, 30), datetime(2026, 11, 16, 10, 30))
+    assert "This week: 2h 30min of 10 hours, 25% completed" in page(started)
+
+
+def test_later_bullet_1_an_edit_into_the_future_is_explained_and_not_saved(started, clock, data_file):
+    add_two_sessions(started, clock)  # it is 10 PM
+    text = press(started, "/sessions/0/edit", was="2026-11-16T09:00:00", start="23:00", hours="0", minutes="30")
+    assert "A session can&#39;t end in the future. It would end at 11:30 PM, but it&#39;s 10:00 PM now." in text
+    assert "Session changed." not in text
+    assert store.load(data_file).sessions[0].start == datetime(2026, 11, 16, 9, 0)
+
+
+def test_later_bullet_1_adding_a_session_in_the_future_is_still_refused(started, clock, data_file):
+    clock.set("2026-11-16 22:00")
+    text = press(started, "/day/2026-11-16/sessions", start="23:00", hours="0", minutes="30")
+    assert "A session can&#39;t end in the future." in text
+    assert store.load(data_file).sessions == []
+
+
+def test_later_bullet_1_delete_asks_first_then_removes_only_that_session(started, clock, data_file):
+    add_two_sessions(started, clock)
+    assert "Nothing was deleted." in press(started, "/sessions/0/delete", was="2026-11-16T09:00:00")
+    assert len(store.load(data_file).sessions) == 2
+    text = press(started, "/sessions/0/delete", was="2026-11-16T09:00:00", sure="yes")
+    assert "Session deleted." in text
+    assert "1 session, 30min in total" in text
+    assert [s.start for s in store.load(data_file).sessions] == [datetime(2026, 11, 16, 13, 0)]
+
+
+def test_later_bullet_1_deleting_the_running_session_stops_the_clock(started, clock, data_file):
+    clock.set("2026-11-16 14:00")
+    press(started, "/clock/start")
+    clock.set("2026-11-16 14:00:20")
+    text = press(started, "/sessions/0/delete", was="2026-11-16T14:00:00", sure="yes")
+    assert "Session deleted." in text
+    assert "Clock running" not in text
+    assert store.load(data_file).sessions == []
+
+
+def test_later_bullet_1_the_running_session_has_no_edit_form(started, clock):
+    clock.set("2026-11-16 14:00")
+    press(started, "/clock/start")
+    text = page(started, "/day/2026-11-16")
+    assert "Press Stop before editing." in text
+    assert "/sessions/0/edit" not in text
+    assert "/sessions/0/delete" in text
+
+
+def test_later_bullet_1_a_session_already_deleted_in_another_tab_is_explained(started, clock, data_file):
+    add_two_sessions(started, clock)
+    press(started, "/sessions/0/delete", was="2026-11-16T09:00:00", sure="yes")
+    # The other tab still shows the old list, where 1:00 PM was session 1.
+    text = press(started, "/sessions/0/edit", was="2026-11-16T09:00:00", start="09:00", hours="3", minutes="0")
+    assert "That session was already changed or deleted. Nothing was changed." in text
+    saved = store.load(data_file).sessions
+    assert [(s.start, s.end) for s in saved] == [(datetime(2026, 11, 16, 13, 0), datetime(2026, 11, 16, 13, 30))]
+
+
+def test_later_bullet_1_a_broken_was_field_is_a_bad_request(started, clock, data_file):
+    add_two_sessions(started, clock)
+    assert started.post("/sessions/0/delete", data={"was": "nonsense", "sure": "yes"}).status_code == 400
+    assert len(store.load(data_file).sessions) == 2
