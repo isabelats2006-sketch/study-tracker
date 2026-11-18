@@ -358,3 +358,52 @@ def test_later_bullet_1_a_broken_was_field_is_a_bad_request(started, clock, data
     add_two_sessions(started, clock)
     assert started.post("/sessions/0/delete", data={"was": "nonsense", "sure": "yes"}).status_code == 400
     assert len(store.load(data_file).sessions) == 2
+
+
+# --- Streaks (later bullet 2, spec 4 Streaks) ---
+
+def study_days(client, clock, first, last):
+    """Add a 1-hour session at 9 AM on days first to last, counting Mon Nov 16 as day 1."""
+    for n in range(first - 1, last):
+        day = datetime(2026, 11, 16) + timedelta(days=n)
+        clock.set(f"{day:%Y-%m-%d} 22:00")
+        press(client, f"/day/{day:%Y-%m-%d}/sessions", start="09:00", hours="1", minutes="0")
+
+
+@pytest.fixture
+def daily(client):
+    """A tracker set up with a 1-hour daily goal at Mon Nov 16, 8:00 AM."""
+    press(client, "/setup", hours="1", minutes="0", period="day")
+    return client
+
+
+def test_later_bullet_2_main_page_shows_the_streak_message_after_5_days(daily, clock):
+    study_days(daily, clock, 1, 4)
+    assert "in a row" not in page(daily)
+    study_days(daily, clock, 5, 5)
+    assert "You&#39;ve hit your goal 5 days in a row. Keep it going!!" in page(daily)
+
+
+def test_later_bullet_2_message_goes_away_after_a_missed_day(daily, clock):
+    study_days(daily, clock, 1, 5)
+    clock.set("2026-11-22 10:00")  # Sunday: Saturday was missed
+    assert "in a row" not in page(daily)
+
+
+def test_later_bullet_2_reset_saves_the_best_streak(daily, clock, data_file):
+    study_days(daily, clock, 1, 6)
+    press(daily, "/reset", sure="yes")
+    assert store.load(data_file).best_streak == 6
+    assert "in a row" not in page(daily)
+
+
+def test_later_bullet_2_changing_the_goal_saves_the_best_streak(daily, clock, data_file):
+    study_days(daily, clock, 1, 3)
+    press(daily, "/goal", hours="2", minutes="0", period="day")
+    assert store.load(data_file).best_streak == 3
+
+
+def test_later_bullet_2_a_bad_goal_change_saves_no_best_streak(daily, clock, data_file):
+    study_days(daily, clock, 1, 3)
+    press(daily, "/goal", hours="2", minutes="0", period="fortnight")
+    assert store.load(data_file).best_streak == 0

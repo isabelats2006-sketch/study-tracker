@@ -78,6 +78,7 @@ def create_app(data_file=DATA_FILE, now=datetime.now):
         return render_template(
             "main.html",
             message=tracker.top_message(state),
+            streak=tracker.streak_message(state, moment),
             deadlines=[(i, tracker.deadline_text(d, moment)) for i, d in tracker.deadlines_in_order(state)],
             progress=tracker.progress(state, moment),
             past=tracker.past_period_text(state, moment),

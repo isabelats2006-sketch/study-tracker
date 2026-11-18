@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
   <h1>{{ message }}</h1>
+  {% if streak %}<p class="card big">🔥 {{ streak }}</p>{% endif %}
   <p class="muted">Goal: {{ goal_text }}</p>
 
   {% for index, text in deadlines %}
