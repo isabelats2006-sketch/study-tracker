@@ -42,6 +42,7 @@ def to_dict(state):
             for s in state.sessions
         ],
         "deadlines": [{"name": d.name, "due": _time(d.due)} for d in state.deadlines],
+        "best_streak": state.best_streak,
     }
 
 
@@ -59,6 +60,8 @@ def from_dict(data):
             for s in data["sessions"]
         ],
         deadlines=[Deadline(d["name"], _read_time(d["due"])) for d in data["deadlines"]],
+        # Files saved before streaks existed (later bullet 2) have no best streak yet.
+        best_streak=int(data.get("best_streak", 0)),
     )
 
 

@@ -47,6 +47,7 @@ class State:
     reset_at: datetime | None = None
     sessions: list = field(default_factory=list)
     deadlines: list = field(default_factory=list)
+    best_streak: int = 0  # longest streak from before the last goal change or Reset
 
     def counting_from(self):
         """Progress counts sessions that started at or after this moment (spec 4, 7)."""
@@ -206,6 +207,98 @@ def top_message(state):
     return "time to work hard!!" if state.goal.minutes > 0 else "have a great off day!!"
 
 
+# --- Streaks (spec.md section 4, Streaks; later bullet 2) ---
+
+FIRST_STREAK_MESSAGE_DAYS = 5
+
+
+def days_in_period(period, day):
+    """How many days the period holding `day` has: 1, 7, 28 to 31, or 365/366."""
+    start = period_start(period, datetime(day.year, day.month, day.day))
+    return (next_period_start(period, start) - start).days
+
+
+def daily_share(goal, day):
+    """The minutes `day` needs to hit the goal: goal / days in its period, rounded up."""
+    days = days_in_period(goal.period, day)
+    return -(-goal.minutes // days)
+
+
+def streak_days(state, now):
+    """For each day from the goal (or last reset) up to today: did it hit the goal?
+
+    Oldest first. Only sessions since the goal or reset count, like progress. Empty when
+    the goal is 0, since an off day isn't hitting a goal.
+    """
+    if state.goal.minutes == 0:
+        return []
+    since = state.counting_from()
+    hits = []
+    day = since.date()
+    while day <= now.date():
+        start = datetime(day.year, day.month, day.day)
+        minutes = minutes_between(state.sessions, start, start + timedelta(days=1), now, since=since)
+        hits.append(minutes >= daily_share(state.goal, day))
+        day += timedelta(days=1)
+    return hits
+
+
+def _runs(hits):
+    """Lengths of the runs of True in a list of days, oldest first."""
+    runs, length = [], 0
+    for hit in hits:
+        if hit:
+            length += 1
+        elif length:
+            runs.append(length)
+            length = 0
+    if length:
+        runs.append(length)
+    return runs
+
+
+def _current_and_earlier(hits):
+    """The current streak, and the longest earlier one since the goal or reset.
+
+    Today doesn't break a streak if it hasn't hit the goal yet: there is still time.
+    """
+    if hits and not hits[-1]:
+        hits = hits[:-1]  # today, not hit yet
+    current = 0
+    while current < len(hits) and hits[len(hits) - 1 - current]:
+        current += 1
+    earlier = _runs(hits[: len(hits) - current])
+    return current, max(earlier, default=0)
+
+
+def current_streak(state, now):
+    """Days in a row, back from today (or yesterday, if today isn't hit yet), that hit the goal."""
+    return _current_and_earlier(streak_days(state, now))[0]
+
+
+def best_streak_before(state, now):
+    """The longest streak before the current one, the saved ones included."""
+    earlier = _current_and_earlier(streak_days(state, now))[1]
+    return max(state.best_streak, earlier)
+
+
+def _save_best_streak(state, now):
+    """Before a goal change or Reset: remember the longest streak so far."""
+    hits = streak_days(state, now)
+    state.best_streak = max([state.best_streak, *_runs(hits)])
+
+
+def streak_message(state, now):
+    """"You've hit your goal 6 days in a row. Keep it going!!" on a new record, else None.
+
+    A record is at least 5 days and longer than every earlier streak (a tie isn't one).
+    """
+    current, earlier = _current_and_earlier(streak_days(state, now))
+    if current >= FIRST_STREAK_MESSAGE_DAYS and current > max(state.best_streak, earlier):
+        return f"You've hit your goal {current} days in a row. Keep it going!!"
+    return None
+
+
 # --- Problems the user should be told about ---
 
 class TrackerProblem(Exception):
@@ -244,8 +337,13 @@ def new_state(goal_minutes, period, now):
 
 
 def set_goal(state, goal_minutes, period, now):
-    """Change the goal. The new goal counts from 0, starting now (spec 1)."""
-    state.goal = _checked_goal(goal_minutes, period, now)
+    """Change the goal. The new goal counts from 0, starting now (spec 1).
+
+    The streak starts again too; the longest one so far is saved first (spec 4, Streaks).
+    """
+    goal = _checked_goal(goal_minutes, period, now)
+    _save_best_streak(state, now)
+    state.goal = goal
 
 
 def _checked_goal(goal_minutes, period, now):
@@ -255,7 +353,11 @@ def _checked_goal(goal_minutes, period, now):
 
 
 def reset(state, now):
-    """The Reset button: progress starts again from 0 now. Nothing is deleted (spec 7)."""
+    """The Reset button: progress starts again from 0 now. Nothing is deleted (spec 7).
+
+    The streak starts again too; the longest one so far is saved first (spec 4, Streaks).
+    """
+    _save_best_streak(state, now)
     state.reset_at = now
 
 

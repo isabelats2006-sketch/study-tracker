@@ -95,3 +95,21 @@ def test_a_damaged_file_is_explained_and_not_changed(tmp_path, text, kind):
         "Nothing was changed. Fix the file, or move it somewhere else to start fresh."
     )
     assert path.read_text(encoding="utf-8") == text
+
+
+def test_later_bullet_2_best_streak_is_saved_and_loaded(tmp_path):
+    path = tmp_path / "tracker.json"
+    state = full_state()
+    state.best_streak = 7
+    save(path, state)
+    assert json.loads(path.read_text(encoding="utf-8"))["best_streak"] == 7
+    assert load(path).best_streak == 7
+
+
+def test_later_bullet_2_a_file_from_before_streaks_loads_with_best_streak_0(tmp_path):
+    path = tmp_path / "tracker.json"
+    save(path, full_state())
+    data = json.loads(path.read_text(encoding="utf-8"))
+    del data["best_streak"]  # how files looked before later bullet 2
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert load(path).best_streak == 0
