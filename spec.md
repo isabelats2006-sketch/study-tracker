@@ -30,11 +30,13 @@ The top of the page shows, in this order:
 
 1. **The message**: "time to work hard!!" if the goal is above 0, or "have a great off
    day!!" if the goal is 0.
-2. **Countdowns** for each deadline (section 6).
-3. **Progress** in the current period (section 4): for example
+2. **The streak message**, only while a record streak is going: "You've hit your goal 6
+   days in a row. Keep it going!!" (section 4, *Streaks*).
+3. **Countdowns** for each deadline (section 6).
+4. **Progress** in the current period (section 4): for example
    "This week: 4 hours of 10 hours, 40% completed".
-4. **Extra hours**, if the goal is passed in this period: "Extra hours: 2 hours".
-5. **Past period**: "past week = 4/10 hours" (section 5).
+5. **Extra hours**, if the goal is passed in this period: "Extra hours: 2 hours".
+6. **Past period**: "past week = 4/10 hours" (section 5).
 
 Below that is **the list of days**, newest first, like folders. There is one row for every
 day from the day the program was first run up to today, **including days with no hours**
@@ -91,6 +93,39 @@ Each session on a day's page has an **Edit** and a **Delete** button.
   It can be above 100%. With a goal of 0 it shows "no goal" instead of a %.
 - **Extra** = done − goal, shown only when it is above 0.
 
+### Streaks (later bullet 2)
+
+Later bullet 2, as written in `problem.md`: "The program remembers the users streaks and
+after theyve hit their goal for the longest amount of days, its sends a message like
+You've hit your goal 5 days in a row. Keep it going!! The first ever message (if no pass
+streak exist before) should be after 5 days."
+
+- **A day hits the goal** when its minutes reach the goal's **daily share**: the goal
+  divided by the number of days in the period that day is in, rounded up to a whole
+  minute. Daily goal: the whole goal. Weekly: goal ÷ 7, so 10 hours a week is 1h 26min a
+  day. Monthly: goal ÷ the days in that month (28 to 31). Yearly: goal ÷ 365, or 366 in a
+  leap year.
+- A day's minutes for a streak count the same sessions as progress: only those that start
+  at or after the goal was set or the last reset. So the day of a change counts only what
+  was studied after it.
+- **The current streak** is the number of days in a row, back from today, that hit the
+  goal. Today counts as soon as it hits the goal. If it hasn't yet, it doesn't break the
+  streak, since there is still time; the streak is then counted back from yesterday.
+- **A missed day** (a whole day that didn't hit the goal) ends the streak, and the
+  current streak goes back to 0. The longest streak is remembered for good.
+- **Changing the goal or pressing Reset** starts a new streak from 0, just like progress.
+  Before that, the longest streak so far is saved, so it still has to be beaten.
+- **With a goal of 0** there are no streaks and no message (an off day isn't hitting a
+  goal).
+- **The message** "You've hit your goal N days in a row. Keep it going!!" (with N the
+  current streak) shows at the top of the main page when the current streak is
+  **at least 5 days** and **longer than every earlier streak**. So the first message ever
+  comes on day 5, and if the best streak so far is 7, the next one comes on day 8. It
+  shows on every page load while that streak goes on, with N going up each day, and goes
+  away when the streak ends. A streak that only ties the best doesn't show it.
+- Editing, deleting or adding a session updates the streak right away. Only the longest
+  streak from before the last goal change or Reset is frozen.
+
 ## 5. Past period (bullet 10)
 
 "past week* = 4/10 hours*" shows the hours done in the previous period against the goal.
@@ -128,11 +163,15 @@ Amounts follow the unit you used for the goal, so a 45-minute goal stays in minu
 Everything is saved in `data/tracker.json`, right after each change. That file holds your
 real study data, so it is not put on GitHub (it is in `.gitignore`).
 
+The file also keeps the **longest streak** from before the last goal change or Reset
+(section 4, *Streaks*). A file saved before streaks existed loads with that set to 0.
+
 ## 10. Tests
 
 `python -m pytest`. Tests cover the logic: periods, totals, %, extra and past-period
 amounts, showing amounts of time, deadlines, the timer check-in rule, checking hand-added
-sessions, editing and deleting sessions, reset, and saving/loading. Flask's test client
+sessions, editing and deleting sessions, streaks and the streak message, reset, and
+saving/loading. Flask's test client
 checks that each button changes the saved data correctly. The page layout and colours are not tested.
 
 ## Decisions I made that problem.md doesn't say (please check)
@@ -165,6 +204,25 @@ checks that each button changes the saved data correctly. The page layout and co
 16. A running session can be deleted (this cancels the clock) but not edited; press Stop
     first.
 17. Deleting asks "Are you sure?" first, because a deleted session can't be brought back.
+
+Decisions for streaks (later bullet 2), chosen with you:
+
+18. With a weekly, monthly or yearly goal, a day counts if it reaches the daily share of
+    the goal (goal ÷ days in that period, rounded up to a whole minute).
+19. "for the longest amount of days" means a new record: the message needs a streak longer
+    than every earlier one (a tie isn't enough), and at least 5 days.
+20. The message is on the main page, under "time to work hard!!", for as long as the record
+    streak goes on.
+21. A missed day ends the streak, and the longest streak is kept. Today never breaks a
+    streak, because the day isn't over.
+22. Changing the goal or pressing Reset starts a new streak. The longest one so far is
+    saved first.
+23. A goal of 0 has no streaks.
+24. Only the message is shown. There is no "current streak / best streak" line.
+25. The day of a goal change or Reset counts only the sessions after it, the same rule as
+    progress (section 4).
+26. The longest streak from before a goal change or Reset is frozen: editing those old
+    sessions afterwards doesn't change it, because they were judged by the old goal.
 
 ## Known small issues (left as they are for now)
 
