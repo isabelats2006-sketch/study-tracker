@@ -266,6 +266,17 @@ MAX_SESSION_MINUTES = 24 * 60
 
 def add_manual_session(state, day, start_time, minutes, now):
     """Add a finished session that started on `day` at `start_time` and lasted `minutes`."""
+    start, end = _checked_times(state, day, start_time, minutes, now)
+    session = Session(start, end)
+    state.sessions.append(session)
+    return session
+
+
+def _checked_times(state, day, start_time, minutes, now):
+    """Start and end of a hand-typed session, or a TrackerProblem saying which rule it breaks.
+
+    Used both for adding and for editing, so the two always follow the same rules.
+    """
     if minutes < 1:
         raise TrackerProblem("A session must be at least 1 minute long.")
     if minutes > MAX_SESSION_MINUTES:
@@ -282,8 +293,35 @@ def add_manual_session(state, day, start_time, minutes, now):
             f"{'' if end.date() == now.date() else f' on {end:%b} {end.day}'}, "
             f"but it's {format_clock(now)} now."
         )
-    session = Session(start, end)
-    state.sessions.append(session)
+    return start, end
+
+
+# --- Editing and deleting a session (spec.md section 3, later bullet 1) ---
+
+def find_session(state, index, was_start):
+    """The session at state.sessions[index], checked to still start at `was_start`.
+
+    The page sends both, so a session changed or deleted in another tab is never
+    mistaken for a different one that moved into its place.
+    """
+    if not 0 <= index < len(state.sessions) or state.sessions[index].start != was_start:
+        raise TrackerProblem("That session was already changed or deleted. Nothing was changed.")
+    return state.sessions[index]
+
+
+def edit_session(state, index, was_start, start_time, minutes, now):
+    """Give a finished session a new start time and length on the same day."""
+    session = find_session(state, index, was_start)
+    if session.end is None:
+        raise TrackerProblem("This session's clock is still running. Press Stop before editing it.")
+    session.start, session.end = _checked_times(state, session.start.date(), start_time, minutes, now)
+    return session
+
+
+def delete_session(state, index, was_start):
+    """Remove a session for good. Deleting a running session cancels the clock."""
+    session = find_session(state, index, was_start)
+    del state.sessions[index]
     return session
 
 
