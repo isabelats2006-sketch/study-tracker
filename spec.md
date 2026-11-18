@@ -2,7 +2,8 @@
 
 What the program does, exactly. The requirements are in `problem.md`; this file turns them
 into behaviour that can be built and tested. "Bullet N" means the Nth bullet under
-*Initial requirements* in `problem.md`.
+*Initial requirements* in `problem.md`, and "later bullet N" the Nth bullet under
+*Later requirements*.
 
 ## How to run
 
@@ -62,6 +63,24 @@ The **Add a session** button gives two choices:
 
 A session belongs to the day it started on.
 
+### Editing and deleting a session (later bullet 1)
+
+Each session on a day's page has an **Edit** and a **Delete** button.
+
+- **Edit** changes a finished session's **start time** and **length** (hours and
+  minutes). The session stays on the same day; to move it to another day, delete it and
+  add it there. The same rules as adding by hand apply: at least 1 minute, at most 24
+  hours, and **it can't end in the future**. So at 10 PM a session can't be set to start
+  at 11 PM (or to start at 9:30 PM and last an hour); the page says why and nothing
+  changes. A session whose clock is still running can't be edited: press Stop first.
+- **Delete** asks "Are you sure?" first, then removes the session for good. A session
+  whose clock is running can be deleted too; that cancels the clock.
+- If the session was already changed or deleted (for example in another tab), the page
+  says so and nothing changes.
+- Totals, progress and the past period follow the edited session. Progress still counts
+  only sessions that start at or after the goal was set or the last reset (section 4), so
+  moving a session's start to before a reset takes it out of the current progress.
+
 ## 4. Progress in the current period (bullets 8, 10, 12)
 
 - The **current period** is today, this week (Monday to Sunday), this calendar month, or
@@ -113,8 +132,8 @@ real study data, so it is not put on GitHub (it is in `.gitignore`).
 
 `python -m pytest`. Tests cover the logic: periods, totals, %, extra and past-period
 amounts, showing amounts of time, deadlines, the timer check-in rule, checking hand-added
-sessions, reset, and saving/loading. Flask's test client checks that each button changes
-the saved data correctly. The page layout and colours are not tested.
+sessions, editing and deleting sessions, reset, and saving/loading. Flask's test client
+checks that each button changes the saved data correctly. The page layout and colours are not tested.
 
 ## Decisions I made that problem.md doesn't say (please check)
 
@@ -127,8 +146,8 @@ the saved data correctly. The page layout and colours are not tested.
    1 minute and 24 hours long.
 6. % can go above 100%, and Extra hours are shown too.
 7. A deadline without a time means 11:59 PM that day.
-8. Editing or deleting a session is not included (not in the requirements; it could be a
-   later round).
+8. Editing or deleting a session was left out at first; later bullet 1 added it (section
+   3, and decisions 14 to 17).
 9. Data is saved in `data/tracker.json` and kept off GitHub.
 10. A hand-added session can't be on a day before the first run, since that day wouldn't
     be in the list.
@@ -138,3 +157,11 @@ the saved data correctly. The page layout and colours are not tested.
     the same time.
 13. If the computer goes to sleep with the clock running, the session ends at the last
     check-in before the sleep (sleeping isn't studying).
+14. Editing changes only the start time and length; the session stays on its day. To move
+    it to another day, delete it and add it again there.
+15. "Not in the future" means a session can't **end** after now, for adding and for
+    editing. That covers the 11 PM example in later bullet 1, and also a session that
+    starts in the past but would run past now.
+16. A running session can be deleted (this cancels the clock) but not edited; press Stop
+    first.
+17. Deleting asks "Are you sure?" first, because a deleted session can't be brought back.
